@@ -1,0 +1,708 @@
+//
+//  CreateQuestionViewController.m
+//  FinalSurvey
+//
+//  Created by Roy Huang Purong on 4/6/13.
+//  Copyright (c) 2013 nus.cs3217. All rights reserved.
+//
+
+#import "CreateQuestionViewController.h"
+#import "ViewHelper.h"
+
+@interface CreateQuestionViewController ()
+
+@end
+
+@implementation CreateQuestionViewController
+
+- (id)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil
+{
+    self = [super initWithNibName:nibNameOrNil bundle:nibBundleOrNil];
+    if (self) {
+    }
+    return self;
+}
+
+-(id)initWithQuestionIndex:(int)index
+{
+    self = [super init];
+    
+    if(self != nil)
+    {
+        QuestionIndex = index;
+        questionList = [[NSMutableArray alloc]init];
+        
+        if(index == 0)
+        {
+            self.previousController = nil;
+            self.nextController = nil;
+        }
+        
+        
+    }
+    return self;
+}
+
+- (void)viewDidLoad
+{
+    //EFFECTS: 1) beautify outlook of interface
+    //         2) initialize navigation toolbar items
+    //         3) initialize keyboard
+    
+    [super viewDidLoad];
+    [self removeImageViews];
+    [self.titleView becomeFirstResponder];
+    self.optionArea.contentSize = CGSizeMake(self.optionArea.frame.size.width, self.optionArea.frame.size.height + 450.0);
+    
+    if((QuestionIndex + 1) == MAX_QUESTION)
+    {
+        [self addNavigationButtonsWhenNumberOfQuestionReachesLimit];
+    }
+    else
+    {
+        [self addNavigationButtonsWhenNumberOfQuestionsUnderLimit];
+    }
+    
+    [self addGestureRecognizerToDismissKeyboard];
+    [self setUpInterfaceOutlook];
+    [self createInputAccessoryView];
+    [self setKeyboardButtons];
+}
+
+- (void)viewWillAppear:(BOOL)animated
+{
+    //EFFECTS: register for keyboard notifications
+    //         update interface title     
+    [[NSNotificationCenter defaultCenter] addObserver:self
+     
+                                             selector:@selector(keyboardWasShown:)
+     
+                                                 name:UIKeyboardDidShowNotification object:nil];
+    
+    [[NSNotificationCenter defaultCenter] addObserver:self
+     
+                                             selector:@selector(keyboardWillBeHidden:)
+     
+                                                 name:UIKeyboardWillHideNotification object:nil];
+    
+    [self updateInterfaceTitle];
+}
+
+
+
+#pragma Instant methods
+-(void)removeImageViews
+{
+    NSArray* subviews = [self.optionArea subviews];
+    
+    for(UIView* subview in subviews)
+    {
+        if([subview isKindOfClass:[UIImageView class]])
+        {
+            [subview removeFromSuperview];
+        }
+    }
+}
+
+
+- (void)addNavigationButtonsWhenNumberOfQuestionReachesLimit
+{
+    //EFFECTS: Initialize Navigationbar items when current question is the 15th question
+    UIBarButtonItem* deleteButton = [[UIBarButtonItem alloc]initWithTitle:@"Delete" style:UIBarButtonItemStylePlain target:self action:@selector(deleteQuestion)];
+    UIBarButtonItem* doneButton = [[UIBarButtonItem alloc]initWithTitle:@"Submit" style:UIBarButtonItemStylePlain target:self action:@selector(saveSurvey)];
+    UIBarButtonItem* backButton = [[UIBarButtonItem alloc]initWithTitle:@"Previous" style:UIBarButtonItemStylePlain target:self action:@selector(backToPreviousQuestion)];
+    UIBarButtonItem* menuButton = [[UIBarButtonItem alloc]initWithTitle:@"All Questions" style:UIBarButtonItemStylePlain target:self action:@selector(viewListOfQuestions:)];
+    UIBarButtonItem* closeButton = [[UIBarButtonItem alloc]initWithTitle:@"Close" style:UIBarButtonItemStylePlain target:self action:@selector(dismissModalViewControllerAnimated:)];
+    [closeButton setTintColor:[UIColor redColor]];
+    self.navigationItem.rightBarButtonItems = [NSArray arrayWithObjects:doneButton, backButton, deleteButton, nil];
+    self.navigationItem.leftBarButtonItems = [NSArray arrayWithObjects:closeButton,menuButton, nil];
+}
+
+- (void)addNavigationButtonsWhenNumberOfQuestionsUnderLimit
+{
+    //EFFECTS: Initialize Navigationbar items when current question number is less than 15
+    UIBarButtonItem* deleteButton = [[UIBarButtonItem alloc]initWithTitle:@"Delete" style:UIBarButtonItemStylePlain target:self action:@selector(deleteQuestion)];
+    UIBarButtonItem* doneButton = [[UIBarButtonItem alloc]initWithTitle:@"Submit" style:UIBarButtonItemStylePlain target:self action:@selector(saveSurvey)];
+    UIBarButtonItem* nextButton = [[UIBarButtonItem alloc]initWithTitle:@"Add Question" style:UIBarButtonItemStylePlain target:self action:@selector(createNewQuestion)];
+    UIBarButtonItem* backButton = [[UIBarButtonItem alloc]initWithTitle:@"Previous" style:UIBarButtonItemStylePlain target:self action:@selector(backToPreviousQuestion)];
+    UIBarButtonItem* menuButton = [[UIBarButtonItem alloc]initWithTitle:@"All Questions" style:UIBarButtonItemStylePlain target:self action:@selector(viewListOfQuestions:)];
+    UIBarButtonItem* closeButton = [[UIBarButtonItem alloc]initWithTitle:@"Close" style:UIBarButtonItemStylePlain target:self action:@selector(dismissModalViewControllerAnimated:)];
+    [closeButton setTintColor:[UIColor redColor]];
+    self.navigationItem.rightBarButtonItems = [NSArray arrayWithObjects:nextButton,backButton,doneButton,deleteButton, nil];
+    self.navigationItem.leftBarButtonItems = [NSArray arrayWithObjects:closeButton,menuButton, nil];
+}
+
+- (void)addGestureRecognizerToDismissKeyboard
+{
+    //EFFECTS: Assign Gesturerecognizer to scroll view (hide keyboard)
+    UITapGestureRecognizer* singleTapGestureRecognizer = [[UITapGestureRecognizer alloc]initWithTarget:self action:@selector(hideKeyboard)];
+    [self.myCanvasView addGestureRecognizer:singleTapGestureRecognizer];
+    singleTapGestureRecognizer.cancelsTouchesInView = NO;
+}
+
+- (void)setUpInterfaceOutlook
+{
+    //EFFECTS: adjust the title outlook
+    //         set up options outlook 
+    self.titleView.layer.borderWidth = 0.5f;
+    self.titleView.layer.borderColor = [[UIColor grayColor]CGColor];
+    self.titleView.layer.cornerRadius = 5.0f;
+    
+
+    NSArray* subviews = [self.optionArea subviews];
+    for(UITextView* subview in subviews)
+    {
+        subview.layer.borderWidth = 0.5f;
+        subview.layer.borderColor = [[UIColor grayColor]CGColor];
+        subview.layer.cornerRadius = 5.0f;
+    }
+    
+    self.view.backgroundColor = [UIColor whiteColor];
+}
+
+- (void)saveQuestion:(NSString *)currentQuestionType currentQuestionTitle:(NSString *)currentQuestionTitle
+{
+    //EFFECTS: construct options list and save current question to current survey model
+    NSMutableArray* contentArray = [[NSMutableArray alloc]init];
+    NSArray* subviews = [self.optionArea subviews];
+    
+    [optionContentArray removeAllObjects];
+    for(UIView* subview in subviews)
+    {
+        UITextView* currentOption = (UITextView*)subview;
+        if (currentOption.text.length != 0)
+        {
+            [contentArray addObject:currentOption.text];
+            [optionContentArray addObject:currentOption.text];
+        }
+    }
+    
+    [self.delegate updateQuestionToSurveyWithTitle:currentQuestionTitle Type:currentQuestionType Options:contentArray Index:QuestionIndex];
+}
+
+-(void)constructCurrentQuestionInfo
+{
+    //EFFECTS: generate option list
+    NSString* currentQuestionTitle = self.titleView.text;
+    questionTitle = self.titleView.text;
+    
+    NSString* currentQuestionType;
+    switch (self.typePicker.selectedSegmentIndex)
+    {
+        case 0:
+            currentQuestionType = @"Open End";
+            break;
+        case 1:
+            currentQuestionType = @"Radio Button";
+            break;
+            
+        case 2:
+            currentQuestionType = @"Check Box";
+            break;
+            
+        default:
+            break;
+    }
+    questionType = currentQuestionType;
+    
+    [self saveQuestion:currentQuestionType currentQuestionTitle:currentQuestionTitle];
+}
+
+-(void)saveCurrentQuestionAndSubsequentQuestions
+{
+    [self constructCurrentQuestionInfo];
+    if(self.nextController != nil)
+    {
+        [self.nextController saveCurrentQuestionAndSubsequentQuestions];
+    }
+}
+
+-(BOOL)isMandotaryFieldsOfAllQuestionsFilled
+{
+    if(![self isMandotaryFieldFilled])
+    {
+        return NO;
+    }
+    if(self.nextController != nil)
+    {
+        return [self.nextController isMandotaryFieldsOfAllQuestionsFilled];
+    }
+    return YES;
+}
+
+-(NSMutableArray*)getTheMatchedControllerWithIndex:(int)index controllerArray:(NSMutableArray*)currentControllerArray
+{
+    if(QuestionIndex == index)
+    {
+        [currentControllerArray addObject:self];
+        return currentControllerArray;
+    }
+    else if(QuestionIndex < index)
+    {
+        [currentControllerArray addObject:self];
+        return [self.nextController getTheMatchedControllerWithIndex:index controllerArray:(NSMutableArray*)currentControllerArray];
+    }
+    [currentControllerArray addObject:self];
+    return [self.previousController getTheMatchedControllerWithIndex:index controllerArray:(NSMutableArray*)currentControllerArray];
+}
+
+-(void)pushToDestinationControllerWithIndex:(int)index
+{
+    if(QuestionIndex+1 == index)
+    {
+        [self.navigationController pushViewController:self.nextController animated:YES];
+    }
+    else
+    {
+        [self.navigationController pushViewController:self.nextController animated:NO];
+        //keep pushing here
+        [self.nextController pushToDestinationControllerWithIndex:index];
+    }
+}
+
+-(void)popToDestinationControllerWithIndex:(int)index
+{
+    if(QuestionIndex-1 == index)
+    {
+        [self.navigationController popToViewController:self.previousController animated:YES];
+    }
+    else
+    {
+        [self.navigationController popToViewController:self.previousController animated:NO];
+        //keep pushing here
+        [self.previousController popToDestinationControllerWithIndex:index];
+    }
+}
+
+-(void)switchToQuestionWithIndex:(int)index
+{
+    if(index > QuestionIndex)
+    {
+        [self pushToDestinationControllerWithIndex:index];
+    }
+    
+    else if(index < QuestionIndex)
+    {
+        [self popToDestinationControllerWithIndex:index];
+    }
+    
+    [popoverQuestionListController dismissPopoverAnimated:YES];
+}
+
+-(BOOL)isMandotaryFieldFilled
+{
+    if(self.titleView.text.length == 0)
+    {
+        return NO;
+    }
+    
+    if(self.typePicker.selectedSegmentIndex == 0)
+    {
+        return YES;
+    }
+    
+    if([self isThereAtLeastOneOption])
+    {
+        return YES;
+    }
+    else
+    {
+        return NO;
+    }
+}
+
+-(BOOL)isThereAtLeastOneOption
+{
+    //EFFECTS: returns YES if there exist one option in current question
+    NSArray* subviews = [self.optionArea subviews];
+    
+    for(UIView* subview in subviews)
+    {
+        UITextView* currentOption = (UITextView*)subview;
+        if(currentOption.text.length != 0)
+        {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+
+#pragma end
+
+
+#pragma Navigationbar button callback methods
+-(void)deleteQuestion
+{
+    //EFFECTS: current CreateQuestionViewController is removed from navigation controller stack
+    //         the previous and next view controllers are changed accordingly
+    if(self.previousController == nil)
+    {
+        [self.delegate changeFirstQuestion:self.nextController];
+    }
+    self.previousController.nextController = self.nextController;
+    self.nextController.previousController = self.previousController;
+    
+    [self.delegate removeCurrentQuestionModel:QuestionIndex];
+    [self.nextController updateQuestionIndex];
+    [self.navigationController popViewControllerAnimated:YES];
+}
+
+-(void)saveSurvey
+{
+    //EFFECTS:current survey model is saved to database
+
+    //Check if mandatory fields are filled
+    if(![self isMandotaryFieldsOfAllQuestionsFilled])
+    {
+        [self showEmptyFieldAlert];
+    }
+    else
+    {
+        [self saveCurrentQuestionAndSubsequentQuestions];
+        [self.delegate finishEditingSuvey];
+    }
+}
+- (void)constructAndDisplayNewQuestion
+{
+    //EFFECTS: a new empty question interface is constructed and displayed
+    
+    CreateQuestionViewController* newQuestion = [[CreateQuestionViewController alloc]initWithQuestionIndex:(QuestionIndex + 1)];
+    self.nextController = newQuestion;
+    newQuestion.previousController = self;
+    newQuestion.delegate = self.delegate;
+    [self.delegate createEmptyQuestionModel];
+    
+    [self.navigationController pushViewController:newQuestion animated:YES];
+}
+
+-(void)createNewQuestion
+{
+    //EFFECTS: a new question interface is created
+    
+    //Check if mandatory fields are filled
+    if(![self isMandotaryFieldFilled])
+    {
+        [self showEmptyFieldAlert];
+    }
+    else
+    {
+        //Save current quesiton
+        [self constructCurrentQuestionInfo];
+        
+        //Check if next question created
+        if(self.nextController != nil)
+        {
+            [self.navigationController pushViewController:self.nextController animated:YES];
+        }
+        else
+        {
+            [self constructAndDisplayNewQuestion];
+        }
+    }
+}
+
+-(void)backToPreviousQuestion
+{
+    [self.navigationController popViewControllerAnimated:YES];
+}
+
+- (void)buildQuestionList:(int)currentTotalNumberOfQuestion
+{
+    //EFFECTS:
+    //1) a list of question numbers is builded for all questions popover (navigate from one question to another)
+    //2) list looks like: Question 1
+    //                    Question 2
+    //                    Question 3
+    for(int i=0; i<currentTotalNumberOfQuestion; i++)
+    {
+        NSMutableString* currentQuestion = [NSMutableString stringWithString:@"Question "];
+        [currentQuestion appendString:[NSString stringWithFormat:@"%d",i+1]];
+        
+        [questionList addObject:currentQuestion];
+    }
+}
+
+-(void)viewListOfQuestions:(id)sender
+{
+    //EFFECTS: show a list of question available in current survey
+    if(!popoverQuestionListController)
+    {
+        //Build the items
+        int currentTotalNumberOfQuestion = [self.delegate getNumberOfQuestion];
+        
+        [self buildQuestionList:currentTotalNumberOfQuestion];
+        
+        QuestionPopoverViewController* controller = [[QuestionPopoverViewController alloc]initWithDiagramList:questionList];
+        controller.delegate = self;
+        popoverQuestionListController = [[UIPopoverController alloc]initWithContentViewController:controller];
+    }
+    
+    if([popoverQuestionListController isPopoverVisible])
+    {
+        [popoverQuestionListController dismissPopoverAnimated:YES];
+    }
+    else
+    {
+        [popoverQuestionListController presentPopoverFromBarButtonItem:sender permittedArrowDirections:UIPopoverArrowDirectionAny animated:YES];
+    }
+}
+
+-(void)createInputAccessoryView{
+    //EFFECTS: configure the items in input accessory view which is above keyboard
+    
+    self.inputAccView = [[UIView alloc] initWithFrame:CGRectMake(10.0, 0.0, 1024.0, 40.0)];
+    [self.inputAccView setBackgroundColor:[UIColor  darkGrayColor]];
+    
+    self.btnPrev = [UIButton buttonWithType: UIButtonTypeRoundedRect];
+    [self.btnPrev setFrame: CGRectMake(0.0, 0.0, 80.0, 40.0)];
+    [self.btnPrev setTitle: @"Previous" forState: UIControlStateNormal];
+    [self.btnPrev addTarget: self action: @selector(gotoPrevTextfield) forControlEvents: UIControlEventTouchUpInside];
+    
+    self.btnNext = [UIButton buttonWithType:UIButtonTypeRoundedRect];
+    [self.btnNext setFrame:CGRectMake(85.0f, 0.0f, 80.0f, 40.0f)];
+    [self.btnNext setTitle:@"Next" forState:UIControlStateNormal];
+    [self.btnNext addTarget:self action:@selector(gotoNextTextfield) forControlEvents:UIControlEventTouchUpInside];
+    
+    self.btnDone = [UIButton buttonWithType:UIButtonTypeRoundedRect];
+    [self.btnDone setFrame:CGRectMake(944.0, 0.0f, 80.0f, 40.0f)];
+    [self.btnDone setTitle:@"Done" forState:UIControlStateNormal];
+    [self.btnDone addTarget:self action:@selector(doneTyping) forControlEvents:UIControlEventTouchUpInside];
+    
+    [self.inputAccView addSubview:self.btnPrev];
+    [self.inputAccView addSubview:self.btnNext];
+    [self.inputAccView addSubview:self.btnDone];
+}
+
+-(void)setKeyboardButtons
+{
+    //EFFECTS: add this input accessory view to each option text view
+    NSArray* subviews = [self.optionArea subviews];
+    
+    for(UITextView* subview in subviews)
+    {
+        [subview setInputAccessoryView:self.inputAccView];
+    }
+}
+#pragma end
+
+#pragma empty field alert
+-(void)showEmptyFieldAlert
+{
+    //EFFECTS: shown whenever there is at least one empty mandotary field detected
+    UIAlertView *warningAlertView = [[UIAlertView alloc] initWithTitle:@"Mandatory Fields Not Filled"
+                                                               message:@"Please fill in mandatory fields before proceeding."
+                                                              delegate:self
+                                                     cancelButtonTitle:@"OK"
+                                                     otherButtonTitles:nil, nil];
+    
+    warningAlertView.alertViewStyle = UIAlertViewStyleDefault;
+    warningAlertView.tag = 1;
+    [warningAlertView show];
+}
+
+
+-(void)updateQuestionIndex
+{
+    //EFFECTS: update the subsequent question index when curren question is removed from survey model
+    QuestionIndex--;
+    if(self.nextController != nil)
+    {
+        [self.nextController updateQuestionIndex];
+    }
+}
+
+- (void)updateInterfaceTitle
+{
+    //EFFECTS: Initialize viewcontroller title
+    NSMutableString* currentQuestionNumber = [NSMutableString stringWithFormat:@"%d",QuestionIndex + 1];
+    NSString* totalQuestionNumber = [NSString stringWithFormat:@"%d",[self.delegate getNumberOfQuestion]];
+    [currentQuestionNumber appendString:@" of "];
+    [currentQuestionNumber appendString:totalQuestionNumber];
+    self.title = currentQuestionNumber;
+}
+#pragma end
+
+#pragma keyboard events
+- (void)keyboardWasShown:(NSNotification*)aNotification
+{
+    self.optionArea.scrollEnabled = YES;
+}
+
+- (void)keyboardWillBeHidden:(NSNotification*)aNotification
+{
+   //EFFECTS: scroll to first question and disable scrolling
+    UITextView* firstOption = (UITextView*)[self.optionArea viewWithTag:1];
+    CGPoint firstViewLocation = CGPointMake(0.0, firstOption.frame.origin.y);
+    [self.optionArea setContentOffset:firstViewLocation animated:YES];
+    
+    self.optionArea.scrollEnabled = NO;
+}
+
+-(void)hideKeyboard
+{
+    //EFFECTS: dismiss keyboard
+    if(activeView != nil)
+    {
+        [activeView resignFirstResponder];
+    }
+    if([self.titleView isFirstResponder])
+    {
+        [self.titleView resignFirstResponder];
+    }
+}
+#pragma end
+
+
+#pragma Actions
+- (IBAction)typePickerSelected:(id)sender
+{
+     //EFFECTS: update option description content when the segmented control is tapped
+    switch (self.typePicker.selectedSegmentIndex)
+    {
+        case 0:
+            [self.optionArea setHidden:YES];
+            self.lblDescription.text = @"";
+            break;
+        case 1:
+            [self.optionArea setHidden:NO];
+            self.lblDescription.text = @"Surveyees can only select 1 option.";
+            break;
+        case 2:
+            [self.optionArea setHidden:NO];
+            self.lblDescription.text = @"Surveyees can select multiple options.";
+            break;
+            
+        default:
+            break;
+    }
+}
+
+#pragma end
+
+
+#pragma textView delegate methods
+- (void)textViewDidBeginEditing:(UITextView *)textView
+{
+     //EFFECTS: focus on the current activated textview
+    activeView = textView;
+    
+    //Change the scroll view position
+    if(textView != self.titleView)
+    {
+        CGPoint currentOptionPosition = CGPointMake(0.0, activeView.frame.origin.y);
+        [self.optionArea setContentOffset:currentOptionPosition animated:YES];
+    }
+}
+
+- (void)textViewDidEndEditing:(UITextView *)textView
+{
+    activeView = nil;
+}
+
+-(BOOL)textView:(UITextView *)textView shouldChangeTextInRange:(NSRange)range replacementText:(NSString *)text
+{
+    //EFFECTS: limit the number of characters in each option to 100, the number of characters in the question title to 500
+    NSUInteger newLength = [textView.text length] + [text length] - range.length;
+    if(textView == self.titleView)
+    {
+        return (newLength > 500) ? NO : YES;
+    }
+    else
+    {
+        return (newLength > 100) ? NO : YES;
+    }
+}
+#pragma end
+
+
+#pragma keyboard navigation view
+-(void)gotoPrevTextfield
+{
+    //EFFECTS: go to next option textview. it will focus first option when current option is 10th option
+    NSArray* subviews = [self.optionArea subviews];
+    
+    if(activeView.tag == 1)
+    {
+        for(UITextView* subview in subviews)
+        {
+            if(subview.tag == 10)
+            {
+                [subview becomeFirstResponder];
+                break;
+            }
+        }
+    }
+    else
+    {
+        for(UITextView* subview in subviews)
+        {
+            if(subview.tag == activeView.tag - 1)
+            {
+                [subview becomeFirstResponder];
+                break;
+            }
+        }
+    }
+}
+
+-(void)gotoNextTextfield
+{
+    //EFFECTS: go to previous option textview. it will focus 10th option when current option is first option
+    NSArray* subviews = [self.optionArea subviews];
+    
+    if(activeView.tag == 10)
+    {
+        for(UITextView* subview in subviews)
+        {
+            if(subview.tag == 1)
+            {
+                [subview becomeFirstResponder];
+                break;
+            }
+        }
+    }
+    else
+    {
+        for(UITextView* subview in subviews)
+        {
+            if(subview.tag == activeView.tag + 1)
+            {
+                [subview becomeFirstResponder];
+                break;
+            }
+        }
+    }
+}
+
+-(void)doneTyping
+{
+    //EFFECTS: dismiss keyboard
+    [activeView resignFirstResponder];
+}
+#pragma end
+
+#pragma default
+-(BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)toInterfaceOrientation
+{
+    return YES;
+}
+
+- (void)didReceiveMemoryWarning
+{
+    [super didReceiveMemoryWarning];
+    // Dispose of any resources that can be recreated.
+}
+
+- (void)viewDidUnload {
+    [self setTitleView:nil];
+    [self setTypePicker:nil];
+    [self setMyCanvasView:nil];
+    [self setOptionArea:nil];
+    [self setLblDescription:nil];
+    [self setOptionArea:nil];
+    [super viewDidUnload];
+}
+#pragma end
+
+@end
